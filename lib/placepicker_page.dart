@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -25,7 +26,8 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
   // Em produção, NUNCA coloque a chave diretamente no código.
   final String _orsApiKey = dotenv.env['ORS_API_KEY'] ?? 'CHAVE_NAO_ENCONTRADA';
 
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  List<dynamic> resultadosPesquisa = [];
 
   @override
   void initState() {
@@ -117,6 +119,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
         final List<dynamic> coords =
             data['features'][0]['geometry']['coordinates'];
         setState(() {
@@ -167,19 +170,39 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
 
-      if (data['features'] != null && data['features'].isNotEmpty) {
-        final coordinates = data['features'][0]['geometry']['coordinates'];
+      List<dynamic>? features = data['features'];
 
-        if (coordinates != null) {
-          final double latitude = coordinates[1];
-          final double longitude = coordinates[0];
+      if (features != null && features.isNotEmpty) {
+        setState(() {
+          resultadosPesquisa.clear();
 
-          setState(() {
-            // userPosition = LatLng(latitude, longitude);
-            selectedPosition = LatLng(latitude, longitude);
-          });
-          _mapController.move(LatLng(latitude, longitude), _mapController.camera.zoom);
-        }
+          resultadosPesquisa =
+              features.map((feature) {
+                return {
+                  "label": feature['properties']['label'] as String,
+                  "coordinates": [
+                    feature['bbox'][1] as double,
+                    feature['bbox'][0] as double,
+                  ],
+                };
+              }).toList();
+        });
+
+        // final coordinates = data['features'][0]['geometry']['coordinates'];
+
+        // if (coordinates != null) {
+        //   final double latitude = coordinates[1];
+        //   final double longitude = coordinates[0];
+
+        //   setState(() {
+        //     // userPosition = LatLng(latitude, longitude);
+        //     selectedPosition = LatLng(latitude, longitude);
+        //   });
+        //   _mapController.move(
+        //     LatLng(latitude, longitude),
+        //     _mapController.camera.zoom,
+        //   );
+        // }
       }
     }
   }
@@ -259,46 +282,99 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                   ),
                   Container(
                     color: Colors.amber,
-                    height: 100,
                     width: double.infinity,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.8,
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: "Pesquisar localização",
-                              fillColor: Colors.white,
-                              filled: true,
-                              enabledBorder: OutlineInputBorder(
+                    height: 300,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Column(
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: MediaQuery.of(context).size.width * 0.8,
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: "Pesquisar localização",
+                                    fillColor: Colors.white,
+                                    filled: true,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: IconButton(
+                                  onPressed: () {
+                                    if (_searchController.text.isNotEmpty) {
+                                      searchLocation(_searchController.text);
+                                    }
+                                  },
+                                  icon: Icon(Icons.search),
+                                  color: Colors.blueAccent,
+                                  style: ButtonStyle(
+                                    fixedSize: WidgetStateProperty.all(
+                                      Size(50, 50),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          if (resultadosPesquisa.isNotEmpty)
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[400],
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.white),
+                              ),
+                              child: Expanded(
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      height: 150,
+                                      child: ListView.builder(
+                                        itemCount: resultadosPesquisa.length,
+                                        itemBuilder: (context, index) {
+                                          String nomeEndereco =
+                                              resultadosPesquisa[index]['label'];
+                                          LatLng coordenada = LatLng(
+                                            resultadosPesquisa[index]
+                                                ['coordinates'][0],
+                                            resultadosPesquisa[index]
+                                                ['coordinates'][1],
+                                          );
+                                          return ListTile(
+                                            title: Text(nomeEndereco),
+                                            onTap: () {
+                                              setState(() {
+                                                selectedPosition = coordenada;
+                                                _mapController.move(coordenada, _mapController.camera.zoom);
+                                                resultadosPesquisa.clear();
+                                                _searchController.text = nomeEndereco;
+                                              });
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.white,
-                          ),
-                          child: IconButton(
-                            onPressed: () {
-                              if (_searchController.text.isNotEmpty) {
-                                searchLocation(_searchController.text);
-                              }
-                            },
-                            icon: Icon(Icons.search),
-                            color: Colors.blueAccent,
-                            style: ButtonStyle(
-                              fixedSize: WidgetStateProperty.all(Size(50, 50)),
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
