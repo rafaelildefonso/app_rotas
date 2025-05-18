@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mapa_teste/getUserLocation.dart';
-import 'package:mapa_teste/pickedplace_page.dart';
+// import 'package:mapa_teste/pickedplace_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -25,6 +25,8 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
   // Em produção, NUNCA coloque a chave diretamente no código.
   final String _orsApiKey = dotenv.env['ORS_API_KEY'] ?? 'CHAVE_NAO_ENCONTRADA';
 
+  TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -37,33 +39,42 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     // return;
     // --------------------------------------------------------------------
 
-    getCurrentLocation().then((position) {
-      print("PlacePicker: Localização obtida - Lat: ${position.latitude}, Lng: ${position.longitude}");
-      if (mounted) { // Garante que o widget ainda está na árvore
-        setState(() {
-          userPosition = LatLng(position.latitude, position.longitude);
-          selectedPosition = LatLng(position.latitude, position.longitude);
-          print("PlacePicker: userPosition e selectedPosition atualizados.");
+    getCurrentLocation()
+        .then((position) {
+          print(
+            "PlacePicker: Localização obtida - Lat: ${position.latitude}, Lng: ${position.longitude}",
+          );
+          if (mounted) {
+            // Garante que o widget ainda está na árvore
+            setState(() {
+              userPosition = LatLng(position.latitude, position.longitude);
+              selectedPosition = LatLng(position.latitude, position.longitude);
+              print(
+                "PlacePicker: userPosition e selectedPosition atualizados.",
+              );
+            });
+          }
+        })
+        .catchError((error) {
+          print("PlacePicker: Erro ao obter localização: $error");
+          if (mounted) {
+            // Considere mostrar uma mensagem de erro para o usuário aqui
+            // Por exemplo, usando um SnackBar ou atualizando o estado para mostrar um widget de erro.
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao obter sua localização: $error')),
+            );
+            // Poderia definir uma localização padrão ou deixar o CircularProgressIndicator
+          }
         });
-      }
-    }).catchError((error) {
-      print("PlacePicker: Erro ao obter localização: $error");
-      if (mounted) {
-        // Considere mostrar uma mensagem de erro para o usuário aqui
-        // Por exemplo, usando um SnackBar ou atualizando o estado para mostrar um widget de erro.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao obter sua localização: $error')),
-        );
-        // Poderia definir uma localização padrão ou deixar o CircularProgressIndicator
-      }
-    });
   }
 
   Future<void> _fetchAndDisplayRoute() async {
     if (userPosition == null || selectedPosition == null) {
       print("Posição do usuário ou selecionada não definida para buscar rota.");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Defina um ponto de partida e chegada no mapa.')),
+        SnackBar(
+          content: Text('Defina um ponto de partida e chegada no mapa.'),
+        ),
       );
       return;
     }
@@ -71,7 +82,9 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     if (_orsApiKey == 'CHAVE_NAO_ENCONTRADA' || _orsApiKey.isEmpty) {
       print("Chave da API do OpenRouteService não configurada.");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Chave da API do OpenRouteService não configurada.')),
+        SnackBar(
+          content: Text('Chave da API do OpenRouteService não configurada.'),
+        ),
       );
       return;
     }
@@ -89,7 +102,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     // Coordenadas no formato [longitude,latitude] exigido pela API
     List<List<double>> coordinates = [
       [userPosition!.longitude, userPosition!.latitude],
-      [selectedPosition!.longitude, selectedPosition!.latitude]
+      [selectedPosition!.longitude, selectedPosition!.latitude],
     ];
 
     try {
@@ -104,14 +117,20 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> coords = data['features'][0]['geometry']['coordinates'];
+        final List<dynamic> coords =
+            data['features'][0]['geometry']['coordinates'];
         setState(() {
-          _routePoints = coords.map((coord) => LatLng(coord[1], coord[0])).toList();
+          _routePoints =
+              coords.map((coord) => LatLng(coord[1], coord[0])).toList();
         });
       } else {
-        print('Erro na API OpenRouteService: ${response.statusCode} - ${response.body}');
+        print(
+          'Erro na API OpenRouteService: ${response.statusCode} - ${response.body}',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao buscar rota: ${response.reasonPhrase}')),
+          SnackBar(
+            content: Text('Erro ao buscar rota: ${response.reasonPhrase}'),
+          ),
         );
       }
     } catch (e) {
@@ -128,15 +147,56 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     }
   }
 
+  Future<void> searchLocation(String endereco) async {
+    final uri = Uri.https(
+      'api.openrouteservice.org',
+      '/geocode/search',
+      {
+        'text': endereco,
+      }, // O parâmetro 'text' será adicionado como ?text=endereco_encodado
+    );
+
+    final response = await http.get(
+      Uri.parse(uri.toString()),
+      headers: {
+        'Authorization': _orsApiKey,
+        'Content-Type': 'application/json',
+      },
+      // body: jsonEncode({'text': endereco}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      if (data['features'] != null && data['features'].isNotEmpty) {
+        final coordinates = data['features'][0]['geometry']['coordinates'];
+
+        if (coordinates != null) {
+          final double latitude = coordinates[1];
+          final double longitude = coordinates[0];
+
+          setState(() {
+            // userPosition = LatLng(latitude, longitude);
+            selectedPosition = LatLng(latitude, longitude);
+          });
+          _mapController.move(LatLng(latitude, longitude), _mapController.camera.zoom);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Escolher Local (OSM)')),
       body:
           userPosition == null && !_isFetchingRoute
-              ? Center(child: CircularProgressIndicator(key: Key("initialLoader")))
+              ? Center(
+                child: CircularProgressIndicator(key: Key("initialLoader")),
+              )
               : _isFetchingRoute
-              ? Center(child: CircularProgressIndicator(key: Key("routeLoader")))
+              ? Center(
+                child: CircularProgressIndicator(key: Key("routeLoader")),
+              )
               : Stack(
                 children: [
                   FlutterMap(
@@ -162,7 +222,9 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                         // Substitua 'com.example.mapa_teste' pelo nome do pacote do seu app.
                         userAgentPackageName: 'com.example.mapa_teste',
                         errorTileCallback: (tile, error, stackTrace) {
-                          print('Erro ao carregar tile: ${tile.coordinates}, Erro: $error, StackTrace: $stackTrace');
+                          print(
+                            'Erro ao carregar tile: ${tile.coordinates}, Erro: $error, StackTrace: $stackTrace',
+                          );
                         },
                       ),
                       if (_routePoints.isNotEmpty)
@@ -176,7 +238,14 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                           ],
                         )
                       else // Opcional: Mantém a polilinha de exemplo se nenhuma rota for carregada
-                        PolylineLayer(polylines: [ Polyline(points: [LatLng(0,0), LatLng(0,0)], color: Colors.transparent) ],), // Linha transparente para não quebrar
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: [LatLng(0, 0), LatLng(0, 0)],
+                              color: Colors.transparent,
+                            ),
+                          ],
+                        ), // Linha transparente para não quebrar
                     ],
                   ),
                   Center(
@@ -188,34 +257,90 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                       ),
                     ),
                   ),
+                  Container(
+                    color: Colors.amber,
+                    height: 100,
+                    width: double.infinity,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: "Pesquisar localização",
+                              fillColor: Colors.white,
+                              filled: true,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.white,
+                          ),
+                          child: IconButton(
+                            onPressed: () {
+                              if (_searchController.text.isNotEmpty) {
+                                searchLocation(_searchController.text);
+                              }
+                            },
+                            icon: Icon(Icons.search),
+                            color: Colors.blueAccent,
+                            style: ButtonStyle(
+                              fixedSize: WidgetStateProperty.all(Size(50, 50)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
       floatingActionButton: FloatingActionButton(
-        child: _isFetchingRoute ? CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white), key: Key("fabLoader")) : Icon(Icons.directions),
         tooltip: 'Obter Rota e Selecionar Local',
-        onPressed: _isFetchingRoute ? null : () async {
-            await _fetchAndDisplayRoute(); // Busca e exibe a rota
+        onPressed:
+            _isFetchingRoute
+                ? null
+                : () async {
+                  await _fetchAndDisplayRoute(); // Busca e exibe a rota
 
-            // Após buscar a rota (ou se falhar), você pode prosseguir com a navegação
-            // se o selectedPosition ainda for válido.
-            if (selectedPosition != null) { // Re-verificar selectedPosition pois _fetchAndDisplayRoute é async
-              print(
-                'Local selecionado para navegação: ${selectedPosition!.latitude}, ${selectedPosition!.longitude}',
-              );
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) {
-              //       return PickedPlace(localizacao: selectedPosition!);
-              //     },
-              //   ),
-              // );
-            } else if (userPosition != null && !_isFetchingRoute) {
-                // Se selectedPosition se tornou nulo por algum motivo mas userPosition existe
-                // e não estamos buscando rota, talvez alertar o usuário ou usar userPosition.
-                print("selectedPosition é nulo após tentativa de rota, mas userPosition existe.");
-            }
-          },
+                  // Após buscar a rota (ou se falhar), você pode prosseguir com a navegação
+                  // se o selectedPosition ainda for válido.
+                  if (selectedPosition != null) {
+                    // Re-verificar selectedPosition pois _fetchAndDisplayRoute é async
+                    print(
+                      'Local selecionado para navegação: ${selectedPosition!.latitude}, ${selectedPosition!.longitude}',
+                    );
+                    // Navigator.push(
+                    //   context,
+                    //   MaterialPageRoute(
+                    //     builder: (context) {
+                    //       return PickedPlace(localizacao: selectedPosition!);
+                    //     },
+                    //   ),
+                    // );
+                  } else if (userPosition != null && !_isFetchingRoute) {
+                    // Se selectedPosition se tornou nulo por algum motivo mas userPosition existe
+                    // e não estamos buscando rota, talvez alertar o usuário ou usar userPosition.
+                    print(
+                      "selectedPosition é nulo após tentativa de rota, mas userPosition existe.",
+                    );
+                  }
+                },
+        child:
+            _isFetchingRoute
+                ? CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  key: Key("fabLoader"),
+                )
+                : Icon(Icons.directions),
       ),
     );
   }
