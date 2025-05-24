@@ -155,7 +155,6 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
       'api.openrouteservice.org',
       '/geocode/search',
       {
-        
         'text': endereco,
       }, // O parâmetro 'text' será adicionado como ?text=endereco_encodado
     );
@@ -251,6 +250,31 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                           );
                         },
                       ),
+                      if (userPosition != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              width: 50.0,
+                              height: 50.0,
+                              point: userPosition!,
+                              child: PulsingCircleMarker(
+                                centerCircleDiameter:
+                                    15.0, // Diâmetro do ponto azul central
+                                color: Color(0xff4285f4), // Cor do marcador
+                                initialPulseOpacity:
+                                    0.3, // Um pouco mais visível que 0.2
+                                pulseScaleMultipliers: const [
+                                  1.5,
+                                  2.0,
+                                  2.5,
+                                ], // Define as ondas
+                                animationDuration: const Duration(
+                                  milliseconds: 1000,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       if (_routePoints.isNotEmpty)
                         PolylineLayer(
                           polylines: [
@@ -274,11 +298,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                   ),
                   Center(
                     child: IgnorePointer(
-                      child: Icon(
-                        Icons.location_pin,
-                        color: Colors.red,
-                        size: 50,
-                      ),
+                      child: Icon(Icons.add, color: Colors.red, size: 30),
                     ),
                   ),
                   SafeArea(
@@ -295,8 +315,14 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 SizedBox(
-                                  width: MediaQuery.of(context).size.width * 0.8,
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.8,
                                   child: TextField(
+                                    onChanged: (context){
+                                      setState(() {
+                                        resultadosPesquisa.clear();
+                                      });
+                                    },
                                     controller: _searchController,
                                     decoration: InputDecoration(
                                       hintText: "Pesquisar localização",
@@ -317,27 +343,78 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                                     borderRadius: BorderRadius.circular(8),
                                     color: Colors.white,
                                   ),
-                                  child: IconButton(
-                                    onPressed: () {
-                                      if (_searchController.text.isNotEmpty) {
-                                        searchLocation(_searchController.text);
-                                      }
-                                    },
-                                    icon: Icon(Icons.search),
-                                    color: Colors.blueAccent,
-                                    style: ButtonStyle(
-                                      fixedSize: WidgetStateProperty.all(
-                                        Size(50, 50),
-                                      ),
-                                    ),
-                                  ),
+                                  child:
+                                      _searchController.text.isEmpty
+                                          ? IconButton(
+                                            onPressed:
+                                                _isFetchingRoute
+                                                    ? null
+                                                    : () async {
+                                                      await _fetchAndDisplayRoute(); // Busca e exibe a rota
+
+                                                      // Após buscar a rota (ou se falhar), você pode prosseguir com a navegação
+                                                      // se o selectedPosition ainda for válido.
+                                                      if (selectedPosition !=
+                                                          null) {
+                                                        // Re-verificar selectedPosition pois _fetchAndDisplayRoute é async
+                                                        print(
+                                                          'Local selecionado para navegação: ${selectedPosition!.latitude}, ${selectedPosition!.longitude}',
+                                                        );
+                                                        // Navigator.push(
+                                                        //   context,
+                                                        //   MaterialPageRoute(
+                                                        //     builder: (context) {
+                                                        //       return PickedPlace(localizacao: selectedPosition!);
+                                                        //     },
+                                                        //   ),
+                                                        // );
+                                                      } else if (userPosition !=
+                                                              null &&
+                                                          !_isFetchingRoute) {
+                                                        // Se selectedPosition se tornou nulo por algum motivo mas userPosition existe
+                                                        // e não estamos buscando rota, talvez alertar o usuário ou usar userPosition.
+                                                        print(
+                                                          "selectedPosition é nulo após tentativa de rota, mas userPosition existe.",
+                                                        );
+                                                      }
+                                                    },
+                                            icon: Icon(Icons.directions),
+                                            color: Colors.blueAccent,
+                                            style: ButtonStyle(
+                                              fixedSize:
+                                                  WidgetStateProperty.all(
+                                                    Size(50, 50),
+                                                  ),
+                                            ),
+                                          )
+                                          : IconButton(
+                                            onPressed: () {
+                                              if (_searchController
+                                                  .text
+                                                  .isNotEmpty) {
+                                                searchLocation(
+                                                  _searchController.text,
+                                                );
+                                              }
+                                            },
+                                            icon: Icon(Icons.search),
+                                            color: Colors.blueAccent,
+                                            style: ButtonStyle(
+                                              fixedSize:
+                                                  WidgetStateProperty.all(
+                                                    Size(50, 50),
+                                                  ),
+                                            ),
+                                          ),
                                 ),
                               ],
                             ),
                             SizedBox(height: 8),
                             if (resultadosPesquisa.isNotEmpty)
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                ),
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: Colors.grey[100],
@@ -349,24 +426,31 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                                         SizedBox(
                                           height: 225,
                                           child: ListView.separated(
-                                            itemCount: resultadosPesquisa.length,
+                                            itemCount:
+                                                resultadosPesquisa.length,
                                             itemBuilder: (context, index) {
                                               String nomeEndereco =
                                                   resultadosPesquisa[index]['label'];
                                               LatLng coordenada = LatLng(
-                                                resultadosPesquisa[index]
-                                                    ['coordinates'][0],
-                                                resultadosPesquisa[index]
-                                                    ['coordinates'][1],
+                                                resultadosPesquisa[index]['coordinates'][0],
+                                                resultadosPesquisa[index]['coordinates'][1],
                                               );
                                               return ListTile(
                                                 title: Text(nomeEndereco),
                                                 onTap: () {
                                                   setState(() {
-                                                    selectedPosition = coordenada;
-                                                    _mapController.move(coordenada, _mapController.camera.zoom);
+                                                    selectedPosition =
+                                                        coordenada;
+                                                    _mapController.move(
+                                                      coordenada,
+                                                      _mapController
+                                                          .camera
+                                                          .zoom,
+                                                    );
                                                     resultadosPesquisa.clear();
-                                                    _searchController.text = nomeEndereco;
+                                                    // _searchController.text =
+                                                    //     nomeEndereco;
+                                                    _searchController.text = '';
                                                   });
                                                 },
                                               );
@@ -388,57 +472,138 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                   ),
                 ],
               ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Obter Rota e Selecionar Local',
-        onPressed:
-            _isFetchingRoute
-                ? null
-                : () async {
-                  await _fetchAndDisplayRoute(); // Busca e exibe a rota
-
-                  // Após buscar a rota (ou se falhar), você pode prosseguir com a navegação
-                  // se o selectedPosition ainda for válido.
-                  if (selectedPosition != null) {
-                    // Re-verificar selectedPosition pois _fetchAndDisplayRoute é async
-                    print(
-                      'Local selecionado para navegação: ${selectedPosition!.latitude}, ${selectedPosition!.longitude}',
-                    );
-                    // Navigator.push(
-                    //   context,
-                    //   MaterialPageRoute(
-                    //     builder: (context) {
-                    //       return PickedPlace(localizacao: selectedPosition!);
-                    //     },
-                    //   ),
-                    // );
-                  } else if (userPosition != null && !_isFetchingRoute) {
-                    // Se selectedPosition se tornou nulo por algum motivo mas userPosition existe
-                    // e não estamos buscando rota, talvez alertar o usuário ou usar userPosition.
-                    print(
-                      "selectedPosition é nulo após tentativa de rota, mas userPosition existe.",
-                    );
-                  }
-                },
-        child:
-            _isFetchingRoute
-                ? CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  key: Key("fabLoader"),
-                )
-                : Icon(Icons.directions),
-      ),
     );
   }
 }
 
-  // Método de teste para inicializar com localização fixa
-  // void _initializeWithFixedLocation() {
-  //   print("PlacePicker: Inicializando com localização FIXA.");
-  //   if (mounted) {
-  //     setState(() {
-  //       userPosition = LatLng(51.509865, -0.118092); // Exemplo: Londres
-  //       selectedPosition = LatLng(51.509865, -0.118092);
-  //       print("PlacePicker: userPosition e selectedPosition (FIXOS) atualizados.");
-  //     });
-  //   }
-  // }
+// Método de teste para inicializar com localização fixa
+// void _initializeWithFixedLocation() {
+//   print("PlacePicker: Inicializando com localização FIXA.");
+//   if (mounted) {
+//     setState(() {
+//       userPosition = LatLng(51.509865, -0.118092); // Exemplo: Londres
+//       selectedPosition = LatLng(51.509865, -0.118092);
+//       print("PlacePicker: userPosition e selectedPosition (FIXOS) atualizados.");
+//     });
+//   }
+// }
+
+// Widget para o marcador pulsante
+class PulsingCircleMarker extends StatefulWidget {
+  final double centerCircleDiameter; // Diâmetro do círculo central
+  final Color color;
+  final Duration animationDuration;
+  final double initialPulseOpacity;
+  final List<double> pulseScaleMultipliers; // e.g., [1.0, 1.5, 2.0]
+
+  const PulsingCircleMarker({
+    Key? key,
+    this.centerCircleDiameter = 20.0, // Padrão para o círculo central
+    this.color = Colors.blue,
+    this.animationDuration = const Duration(
+      seconds: 1,
+    ), // Duração da animação SwiftUI
+    this.initialPulseOpacity =
+        0.2, // Opacidade inicial do pulso (como no SwiftUI)
+    this.pulseScaleMultipliers = const [
+      1.0,
+      1.75,
+      2.5,
+    ], // Escalas para os pulsos
+  }) : super(key: key);
+
+  @override
+  _PulsingCircleMarkerState createState() => _PulsingCircleMarkerState();
+}
+
+class _PulsingCircleMarkerState extends State<PulsingCircleMarker>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: widget.animationDuration,
+    )..repeat(); // Inicia a animação em loop
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        double animationProgress =
+            _animationController.value; // Vai de 0.0 a 1.0
+        // Opacidade do pulso diminui de initialPulseOpacity para 0
+        double currentPulseOpacity =
+            widget.initialPulseOpacity * (1.0 - animationProgress);
+
+        // Cria os círculos pulsantes
+        List<Widget> pulseCircles =
+            widget.pulseScaleMultipliers.map((scaleMultiplier) {
+              return _buildPulsingCircle(
+                animationProgress,
+                scaleMultiplier,
+                widget.centerCircleDiameter, // Diâmetro base para os pulsos
+                currentPulseOpacity,
+                widget.color,
+              );
+            }).toList();
+
+        return Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            ...pulseCircles, // Adiciona os círculos pulsantes (os maiores ficam atrás)
+            // Círculo central fixo
+            Container(
+              width: widget.centerCircleDiameter,
+              height: widget.centerCircleDiameter,
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
+                // Opcional: Adicionar uma borda branca para destacar
+                // border: Border.all(color: Colors.white.withOpacity(0.7), width: 1.5),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Helper para construir cada círculo pulsante
+  Widget _buildPulsingCircle(
+    double animationProgress,
+    double
+    targetScaleMultiplier, // Escala alvo para este pulso (ex: 1.0, 1.5, 2.0)
+    double baseDiameter, // Diâmetro base do círculo antes de escalar
+    double opacity, // Opacidade atual do pulso
+    Color color, // Cor do pulso
+  ) {
+    // A escala atual vai de 0 até targetScaleMultiplier conforme a animação progride
+    double currentScale = animationProgress * targetScaleMultiplier;
+
+    return Opacity(
+      opacity: opacity,
+      child: Transform.scale(
+        scale: currentScale,
+        child: Container(
+          width: baseDiameter,
+          height: baseDiameter,
+          decoration: BoxDecoration(
+            color: color, // Cor do pulso (a mesma do círculo central)
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
