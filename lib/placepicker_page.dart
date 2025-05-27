@@ -187,22 +187,12 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                 };
               }).toList();
         });
-
-        // final coordinates = data['features'][0]['geometry']['coordinates'];
-
-        // if (coordinates != null) {
-        //   final double latitude = coordinates[1];
-        //   final double longitude = coordinates[0];
-
-        //   setState(() {
-        //     // userPosition = LatLng(latitude, longitude);
-        //     selectedPosition = LatLng(latitude, longitude);
-        //   });
-        //   _mapController.move(
-        //     LatLng(latitude, longitude),
-        //     _mapController.camera.zoom,
-        //   );
-        // }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sem resultados para essa busca'),
+          ),
+        );
       }
     }
   }
@@ -303,7 +293,6 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                   ),
                   SafeArea(
                     child: SizedBox(
-                      // color: Colors.amber,
                       width: double.infinity,
                       height: 300,
                       child: Padding(
@@ -318,7 +307,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                                   width:
                                       MediaQuery.of(context).size.width * 0.8,
                                   child: TextField(
-                                    onChanged: (context){
+                                    onChanged: (text){
                                       setState(() {
                                         resultadosPesquisa.clear();
                                       });
@@ -416,52 +405,60 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                                   horizontal: 8.0,
                                 ),
                                 child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Expanded(
-                                    child: Column(
-                                      children: [
-                                        SizedBox(
-                                          height: 225,
-                                          child: ListView.separated(
-                                            itemCount:
-                                                resultadosPesquisa.length,
-                                            itemBuilder: (context, index) {
-                                              String nomeEndereco =
-                                                  resultadosPesquisa[index]['label'];
-                                              LatLng coordenada = LatLng(
-                                                resultadosPesquisa[index]['coordinates'][0],
-                                                resultadosPesquisa[index]['coordinates'][1],
-                                              );
-                                              return ListTile(
-                                                title: Text(nomeEndereco),
-                                                onTap: () {
-                                                  setState(() {
-                                                    selectedPosition =
-                                                        coordenada;
-                                                    _mapController.move(
-                                                      coordenada,
-                                                      _mapController
-                                                          .camera
-                                                          .zoom,
-                                                    );
-                                                    resultadosPesquisa.clear();
-                                                    // _searchController.text =
-                                                    //     nomeEndereco;
-                                                    _searchController.text = '';
-                                                  });
-                                                },
-                                              );
-                                            },
-                                            separatorBuilder: (context, index) {
-                                              return Divider();
-                                            },
-                                          ),
+                                  // A decoração foi removida para um visual mais limpo com Cards
+                                  // decoration: BoxDecoration(
+                                  //   color: Colors.grey[100],
+                                  //   borderRadius: BorderRadius.circular(8),
+                                  // ),
+                                  height: 225, // Define a altura do container da lista
+                                  child: ListView.builder( // Alterado para ListView.builder
+                                    itemCount: resultadosPesquisa.length,
+                                    itemBuilder: (context, index) {
+                                      final result = resultadosPesquisa[index];
+                                      // Adicionar verificação de segurança para os dados
+                                      final String? nomeEndereco = result['label'] as String?;
+                                      final List<dynamic>? coords = result['coordinates'] as List<dynamic>?;
+
+                                      // Verifica se os dados essenciais não são nulos
+                                      if (nomeEndereco == null || coords == null || coords.length < 2 || coords[0] == null || coords[1] == null) {
+                                        // Log para debug e retorna um widget vazio para não quebrar a UI
+                                        print("Dados inválidos para o item $index: $result");
+                                        return SizedBox.shrink(); 
+                                      }
+
+                                      // Converte as coordenadas para double de forma segura
+                                      LatLng coordenada = LatLng(
+                                        (coords[0] as num).toDouble(),
+                                        (coords[1] as num).toDouble(),
+                                      );
+
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(vertical: 2.0),
+                                        elevation: 2.0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8.0),
                                         ),
-                                      ],
-                                    ),
+                                        child: ListTile(
+                                          leading: Icon(
+                                            Icons.location_on_outlined,
+                                            color: Theme.of(context).colorScheme.primary,
+                                          ),
+                                          title: Text(
+                                            nomeEndereco,
+                                            style: TextStyle(fontWeight: FontWeight.w500),
+                                          ),
+                                          contentPadding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                                          onTap: () {
+                                            setState(() {
+                                              selectedPosition = coordenada;
+                                              _mapController.move(coordenada, _mapController.camera.zoom);
+                                              resultadosPesquisa.clear();
+                                              _searchController.clear();
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -475,18 +472,6 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
     );
   }
 }
-
-// Método de teste para inicializar com localização fixa
-// void _initializeWithFixedLocation() {
-//   print("PlacePicker: Inicializando com localização FIXA.");
-//   if (mounted) {
-//     setState(() {
-//       userPosition = LatLng(51.509865, -0.118092); // Exemplo: Londres
-//       selectedPosition = LatLng(51.509865, -0.118092);
-//       print("PlacePicker: userPosition e selectedPosition (FIXOS) atualizados.");
-//     });
-//   }
-// }
 
 // Widget para o marcador pulsante
 class PulsingCircleMarker extends StatefulWidget {
