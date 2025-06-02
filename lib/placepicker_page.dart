@@ -9,6 +9,7 @@ import 'package:mapa_teste/getUserLocation.dart';
 // import 'package:mapa_teste/pickedplace_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:geolocator/geolocator.dart';
 
 class OSMPlacePicker extends StatefulWidget {
   @override
@@ -21,6 +22,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
   LatLng? userPosition;
   List<LatLng> _routePoints = []; // Para armazenar os pontos da rota
   bool _isFetchingRoute = false; // Para mostrar um indicador de carregamento
+  StreamSubscription<Position>? _positionStreamSubscription;
 
   // IMPORTANTE: Substitua pela sua chave de API do OpenRouteService
   // Em produção, NUNCA coloque a chave diretamente no código.
@@ -68,16 +70,37 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
             // Poderia definir uma localização padrão ou deixar o CircularProgressIndicator
           }
         });
+
+    // Inicia o stream de localização
+    _positionStreamSubscription = getLocationStream().listen((position) {
+      if (mounted) {
+        setState(() {
+          userPosition = LatLng(position.latitude, position.longitude);
+          // Se quiser que o selectedPosition também siga o usuário:
+          // selectedPosition = LatLng(position.latitude, position.longitude);
+        });
+        // Recalcula a rota quando a posição do usuário mudar
+        _fetchAndDisplayRoute();
+      }
+    }, onError: (error) {
+      print("Erro no stream de localização: $error");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar localização: $error')),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchAndDisplayRoute() async {
     if (userPosition == null || selectedPosition == null) {
       print("Posição do usuário ou selecionada não definida para buscar rota.");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Defina um ponto de partida e chegada no mapa.'),
-        ),
-      );
       return;
     }
 
@@ -289,6 +312,19 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                   Center(
                     child: IgnorePointer(
                       child: Icon(Icons.add, color: Colors.red, size: 30),
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton(
+                      onPressed: () {
+                        if (userPosition != null) {
+                          _mapController.move(userPosition!, _mapController.camera.zoom);
+                        }
+                      },
+                      child: Icon(Icons.my_location, color: Colors.blue),
+                      backgroundColor: Colors.white,
                     ),
                   ),
                   SafeArea(

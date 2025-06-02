@@ -26,3 +26,12 @@ Future<Position> getCurrentLocation() async {
   // Pega localização
   return await Geolocator.getCurrentPosition();
 }
+
+Stream<Position> getLocationStream({LocationAccuracy accuracy = LocationAccuracy.high, int distanceFilter = 10}) {
+  return Geolocator.getPositionStream(
+    locationSettings: LocationSettings(
+      accuracy: accuracy,
+      distanceFilter: distanceFilter,
+    ),
+  );
+}
