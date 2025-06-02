@@ -135,28 +135,36 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
         Uri.parse(url),
         headers: {
           'Authorization': _orsApiKey,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
         },
-        body: jsonEncode({'coordinates': coordinates}),
+        body: jsonEncode({
+          'coordinates': coordinates,
+          'instructions': true,
+          'preference': 'fastest',
+          'units': 'm',
+          'language': 'pt',
+          'geometry_simplify': true,
+        }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        final List<dynamic> coords =
-            data['features'][0]['geometry']['coordinates'];
-        setState(() {
-          _routePoints =
-              coords.map((coord) => LatLng(coord[1], coord[0])).toList();
-        });
+        if (data['features'] != null && data['features'].isNotEmpty) {
+          final List<dynamic> coords = data['features'][0]['geometry']['coordinates'];
+          setState(() {
+            _routePoints = coords.map((coord) => LatLng(coord[1], coord[0])).toList();
+          });
+        } else {
+          print('Nenhuma rota encontrada na resposta da API');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Nenhuma rota encontrada para este trajeto')),
+          );
+        }
       } else {
-        print(
-          'Erro na API OpenRouteService: ${response.statusCode} - ${response.body}',
-        );
+        print('Erro na API OpenRouteService: ${response.statusCode} - ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao buscar rota: ${response.reasonPhrase}'),
-          ),
+          SnackBar(content: Text('Erro ao buscar rota: ${response.reasonPhrase}')),
         );
       }
     } catch (e) {
@@ -223,6 +231,8 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      extendBody: true,
       body:
           userPosition == null && !_isFetchingRoute
               ? Center(
