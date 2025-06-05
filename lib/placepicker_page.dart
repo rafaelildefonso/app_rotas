@@ -23,6 +23,7 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
   List<LatLng> _routePoints = []; // Para armazenar os pontos da rota
   bool _isFetchingRoute = false; // Para mostrar um indicador de carregamento
   StreamSubscription<Position>? _positionStreamSubscription;
+  final _markerKey = GlobalKey(); // Chave para o marcador
 
   // IMPORTANTE: Substitua pela sua chave de API do OpenRouteService
   // Em produção, NUNCA coloque a chave diretamente no código.
@@ -76,8 +77,6 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
       if (mounted) {
         setState(() {
           userPosition = LatLng(position.latitude, position.longitude);
-          // Se quiser que o selectedPosition também siga o usuário:
-          // selectedPosition = LatLng(position.latitude, position.longitude);
         });
         // Recalcula a rota quando a posição do usuário mudar
         _fetchAndDisplayRoute();
@@ -277,23 +276,20 @@ class _OSMPlacePickerState extends State<OSMPlacePicker> {
                         MarkerLayer(
                           markers: [
                             Marker(
+                              key: _markerKey,
                               width: 50.0,
                               height: 50.0,
                               point: userPosition!,
-                              child: PulsingCircleMarker(
-                                centerCircleDiameter:
-                                    15.0, // Diâmetro do ponto azul central
-                                color: Color(0xff4285f4), // Cor do marcador
-                                initialPulseOpacity:
-                                    0.3, // Um pouco mais visível que 0.2
-                                pulseScaleMultipliers: const [
-                                  1.5,
-                                  2.0,
-                                  2.5,
-                                ], // Define as ondas
-                                animationDuration: const Duration(
-                                  milliseconds: 1000,
-                                ),
+                              child: StatefulBuilder(
+                                builder: (context, setState) {
+                                  return PulsingCircleMarker(
+                                    centerCircleDiameter: 15.0,
+                                    color: Color(0xff4285f4),
+                                    initialPulseOpacity: 0.3,
+                                    pulseScaleMultipliers: const [1.5, 2.0, 2.5],
+                                    animationDuration: const Duration(milliseconds: 1000),
+                                  );
+                                },
                               ),
                             ),
                           ],
