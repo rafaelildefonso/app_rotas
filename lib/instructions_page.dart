@@ -16,6 +16,7 @@ class InstructionsPage extends StatelessWidget {
           ),
         ),
         child: SafeArea(
+          bottom: false,
           child: Center(
             child: SingleChildScrollView(
               child: Column(
@@ -71,6 +72,7 @@ class InstructionsPage extends StatelessWidget {
                       padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                     ),
                   ),
+                  SizedBox(height: 70),
                 ],
               ),
             ),

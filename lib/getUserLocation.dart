@@ -71,7 +71,7 @@ Future<Position> getCurrentLocation({bool fallbackToZero = true}) async {
 
 Stream<Position> getLocationStream({
   LocationAccuracy accuracy = LocationAccuracy.high,
-  int distanceFilter = 10,
+  int distanceFilter = 5,
 }) {
   return Geolocator.getPositionStream(
     locationSettings: LocationSettings(
